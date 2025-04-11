@@ -1,12 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from .routers import users as user_router
+
 app = FastAPI(
     title="Brian's FastAPI API",
     summary="This is a short summary of the api",
     description="THis is a decsription of what the api is meant for",
     version="0.2.0",
 )
+
+app.include_router(user_router.router)
 
 
 class Item(BaseModel):
@@ -84,13 +88,15 @@ from typing import Annotated
 
 @app.post("/users")
 # additional validation can be applied on query parameters with the Query and Annotated class
-# the case below means that user_type is an optional string that but must be less than 51 characters when 
+# the case below means that user_type is an optional string that but must be less than 51 characters when
 # provided
 # there are similar class like Query, Query here is used because the type in question is a query
 # there is Cookie, Path, Body, Header, Form File that also accept the same arguments as Query
 # you can have more validation like min_length, pattern for regex, title, description, alias, deprecated  etc
 # Technical Note: Query, Path are all functions that when called create instance of classes with the same name
-async def users(user: User, user_type: Annotated[str | None, Query(max_length=50)] = None):
+async def users(
+    user: User, user_type: Annotated[str | None, Query(max_length=50)] = None
+):
     return user
 
 
@@ -99,7 +105,9 @@ async def list_items(limit: int = 10):
     return items[0:limit]
 
 
-@app.get("/items/{item_id}") # a path parameter is always required, even if it's set to None in the function signtature
+@app.get(
+    "/items/{item_id}"
+)  # a path parameter is always required, even if it's set to None in the function signtature
 # if the function argument is available in the path, the argument is expected to be a path variable
 # path parameters must be passed to the function as a function argument
 async def get_item(item_id: int):
@@ -129,19 +137,34 @@ from pydantic import Field
 from typing import Literal
 
 
+# this same logic and process applies to
+# Cookie, Header, Response
 class FilterQuery(BaseModel):
-    model_config = {"extra": "forbid"} # this forbids extra fields on the fields received
+    model_config = {
+        "extra": "forbid"
+    }  # this forbids extra fields on the fields received
 
-    # Field works the same way as Query, Body and Path, 
+    # Field works the same way as Query, Body and Path,
     # it has the same parameters
     limit: int = Field(100, gt=0, le=1000)
     # the Field can take an additional argument call examples that shows example of the field
-    # this would be used for API docs, this applies to Query, Body and the likes 
+    # this would be used for API docs, this applies to Query, Body and the likes
     offset: int = Field(0, ge=0)
     order_by: Literal["created_at", "updated_at"] = "created_at"
     tags: set[str] = set()
 
 
 @app.get("/products")
+# when using Query params that are BaseModel you must define them as Query in the annotation
+# otherwise fastapi would use them as JSON Body
+# this same logics applies for Cookies, they must be specified as Cookies
+# otherwise fastapi would treat them as Query params
 async def read_products(filter_query: Annotated[FilterQuery, Query()]):
     return filter_query
+
+
+@app.get("/pops/")
+async def read_items(
+    custom_name: Annotated[str | None, Header()] = None,
+):
+    return {"strange_header": custom_name}
