@@ -1,4 +1,7 @@
+import time
 from fastapi import FastAPI, HTTPException
+from fastapi import Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .routers import users as user_router
@@ -9,6 +12,33 @@ app = FastAPI(
     description="THis is a decsription of what the api is meant for",
     version="0.2.0",
 )
+
+origins = [
+    "http://localhost:3000",
+    "https://localhost:3000",
+]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # you can use ["*"] to allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    # this is the part of the middleware that runs before reaching the path operation function
+    start_time = time.perf_counter()
+    response: Response = await call_next(request)
+    # this is the part of the middleware that runs after the part operation and before the respoonse
+    # is returned to the client
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
 
 app.include_router(user_router.router)
 
@@ -168,3 +198,15 @@ async def read_items(
     custom_name: Annotated[str | None, Header()] = None,
 ):
     return {"strange_header": custom_name}
+
+
+from .dependencies import CommonQueryParams
+from fastapi import Depends
+
+@app.get("/echo_depends/")
+def echo_depends(commons: Annotated[CommonQueryParams, Depends(CommonQueryParams)]):
+    response = {}
+    response['q'] = commons.q
+    response['skip']  = commons.skip
+    response['limit'] = commons.limit
+    return response
